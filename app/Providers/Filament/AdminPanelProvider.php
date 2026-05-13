@@ -11,7 +11,6 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -46,10 +45,6 @@ class AdminPanelProvider extends PanelProvider
                 '</span>'
             ))
             ->brandLogoHeight('4rem')
-            ->renderHook(
-                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
-                fn (): HtmlString => $this->renderLoginCrabs(),
-            )
             ->homeUrl(fn (): string => Overview::getUrl(panel: 'admin'))
             ->colors([
                 'primary' => Color::Red,
@@ -71,28 +66,5 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 RedirectToLogin::class,
             ]);
-    }
-
-    private function renderLoginCrabs(): HtmlString
-    {
-        $crabs = '';
-
-        for ($index = 0; $index < 7; $index++) {
-            $isReverse = (bool) random_int(0, 1);
-
-            $crabs .= sprintf(
-                '<span class="neo-login-crab%s" style="--crab-left:%d%%;--crab-bottom:%.1frem;--crab-size:%.2frem;--crab-duration:%ds;--crab-delay:%ds;--crab-travel:%dvw;--crab-opacity:%.2f;">🦀</span>',
-                $isReverse ? ' neo-login-crab--reverse' : '',
-                random_int(2, 88),
-                random_int(0, 18) / 10,
-                random_int(18, 28) / 10,
-                random_int(14, 24),
-                random_int(-20, 0),
-                random_int(16, 34),
-                random_int(65, 100) / 100,
-            );
-        }
-
-        return new HtmlString('<div class="neo-login-crabs" aria-hidden="true">'.$crabs.'</div>');
     }
 }
