@@ -267,3 +267,35 @@ body {
 .fi-no .fi-no-notification:not(.fi-inline) {
     max-width: 100%;
 }
+
+/*
+| Tombol aksi dashboard Overview (piutang): warna di sini supaya tetap benar
+| setelah deploy — public/build tidak di-commit; tanpa `npm run build` di server,
+| utility Tailwind dari Blade bisa tidak ada di CSS hasil build.
+*/
+.neo-paylater-btn-emerald {
+    background-color: #059669 !important;
+    color: #fff !important;
+}
+
+.neo-paylater-btn-emerald:hover:not(:disabled) {
+    background-color: #047857 !important;
+}
+
+.neo-paylater-btn-amber {
+    background-color: #fbbf24 !important;
+    color: #451a03 !important;
+}
+
+.neo-paylater-btn-amber:hover:not(:disabled) {
+    background-color: #f59e0b !important;
+}
+
+.neo-paylater-btn-amber-solid {
+    background-color: #f59e0b !important;
+    color: #451a03 !important;
+}
+
+.neo-paylater-btn-amber-solid:hover:not(:disabled) {
+    background-color: #d97706 !important;
+}

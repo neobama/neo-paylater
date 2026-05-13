@@ -149,14 +149,14 @@
                                             wire:click="openFullSettleModal({{ $group['counterparty']->id }})"
                                             wire:loading.attr="disabled"
                                             wire:target="openFullSettleModal({{ $group['counterparty']->id }})"
-                                            class="inline-flex min-h-9 min-w-[5.5rem] items-center justify-center rounded-full !bg-emerald-600 px-4 py-2 text-sm font-semibold !text-white shadow-sm ring-1 ring-emerald-700/20 transition hover:!bg-emerald-700 disabled:opacity-60"
+                                            class="neo-paylater-btn-emerald inline-flex min-h-9 min-w-[5.5rem] items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-emerald-700/20 transition disabled:opacity-60"
                                         >
                                             Lunasi
                                         </button>
                                         <button
                                             type="button"
                                             wire:click="openPartialReceivable({{ $group['counterparty']->id }})"
-                                            class="inline-flex min-h-9 items-center justify-center rounded-full !bg-amber-400 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm ring-1 ring-amber-500/30 transition hover:!bg-amber-500"
+                                            class="neo-paylater-btn-amber inline-flex min-h-9 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-amber-500/30 transition disabled:opacity-60"
                                         >
                                             Lunasi sebagian
                                         </button>
@@ -277,7 +277,7 @@
                         wire:click="confirmFullSettle"
                         wire:loading.attr="disabled"
                         wire:target="confirmFullSettle"
-                        class="inline-flex min-w-[7rem] items-center justify-center rounded-full !bg-amber-500 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm transition hover:!bg-amber-600 disabled:opacity-60"
+                        class="neo-paylater-btn-amber-solid inline-flex min-w-[7rem] items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition disabled:opacity-60"
                     >
                         Catat lunas
                     </button>
@@ -341,7 +341,7 @@
                         wire:click="submitPartialReceivable"
                         wire:loading.attr="disabled"
                         wire:target="submitPartialReceivable"
-                        class="inline-flex min-w-[7rem] items-center justify-center rounded-full !bg-amber-500 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm transition hover:!bg-amber-600 disabled:opacity-60"
+                        class="neo-paylater-btn-amber-solid inline-flex min-w-[7rem] items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition disabled:opacity-60"
                     >
                         Simpan
                     </button>
