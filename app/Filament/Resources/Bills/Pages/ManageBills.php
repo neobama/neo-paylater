@@ -54,7 +54,6 @@ class ManageBills extends ManageRecords
                             ->directory('receipts')
                             ->image()
                     )
-                        ->helperText('Foto dari HP otomatis diperkecil di perangkat sebelum upload, lalu disimpan di server (bukan cloud).')
                         ->required(),
                 ])
                 ->action(function (array $data, ReceiptParserService $receiptParserService, BillService $billService) {
@@ -87,7 +86,7 @@ class ManageBills extends ManageRecords
                         'merchant' => $parsed['merchant'],
                         'transaction_date' => $parsed['transaction_date'] ?: $data['fallback_transaction_date'],
                         'paid_by_user_id' => $data['paid_by_user_id'],
-                        'notes' => 'Draft hasil parsing Gemini. Atur assignment lalu simpan.',
+                        'notes' => 'Draft hasil parsing. Atur assignment orang per item lalu simpan.',
                         'receipt_image_path' => $data['receipt_image_path'],
                         'receipt_parse_status' => 'parsed',
                         'receipt_raw_json' => $parsed['raw'],

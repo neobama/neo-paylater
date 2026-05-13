@@ -106,14 +106,13 @@ class BillResource extends Resource
                             ->imageEditor()
                             ->openable()
                             ->downloadable()
-                            ->helperText('Upload opsional. Foto dari HP otomatis diperkecil di perangkat sebelum upload. File disimpan lokal di folder receipt. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
+                            ->helperText('Upload opsional. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
                     ->description('Subtotal per baris belum termasuk pajak & service; bagian itu dibagi proporsional saat simpan. Matikan "split per item" bila tiap baris cukup satu orang.')
                     ->schema([
                         Toggle::make('split_per_item')
-                            ->label('Split nominal per item (banyak orang per baris)')
-                            ->helperText('Matikan: pilih satu orang per item. Nyalakan: pecah nominal per baris ke beberapa orang.')
+                            ->label('Split nominal per item')
                             ->default(false)
                             ->live(),
                         Repeater::make('items')
@@ -167,7 +166,7 @@ class BillResource extends Resource
                                             })
                                             ->columnSpan(2),
                                         TextInput::make('line_subtotal')
-                                            ->label('Subtotal baris')
+                                            ->label('Subtotal item')
                                             ->numeric()
                                             ->prefix('Rp')
                                             ->required()
@@ -208,7 +207,6 @@ class BillResource extends Resource
                                             ->numeric()
                                             ->prefix('Rp')
                                             ->default(fn (Get $get): int => Money::normalize($get('../../line_subtotal')))
-                                            ->helperText('Total baris split + pajak/service dihitung saat simpan; proporsi di sini dipertahankan.')
                                             ->columnSpan(4),
                                         TextInput::make('notes')
                                             ->label('Catatan')
@@ -222,14 +220,12 @@ class BillResource extends Resource
                                     ->label('Pajak')
                                     ->numeric()
                                     ->prefix('Rp')
-                                    ->default(0)
-                                    ->helperText('Dibagi ke tiap item proporsional terhadap subtotal baris, lalu masuk ke total yang dibebankan.'),
+                                    ->default(0),
                                 TextInput::make('service_charge_amount')
                                     ->label('Service charge')
                                     ->numeric()
                                     ->prefix('Rp')
-                                    ->default(0)
-                                    ->helperText('Sama seperti pajak: proporsional per subtotal item.'),
+                                    ->default(0),
                             ]),
                     ]),
             ]);
@@ -274,7 +270,7 @@ class BillResource extends Resource
                             ->imageHeight(320)
                             ->square(false)
                             ->defaultImageUrl('https://placehold.co/800x500/f5f5f5/999999?text=No+Receipt')
-                            ->helperText('Foto receipt disimpan di storage lokal server.')
+                            ->helperText('Foto receipt disimpan.')
                             ->extraImgAttributes([
                                 'class' => 'rounded-2xl object-contain bg-gray-50 p-2',
                             ]),
