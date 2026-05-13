@@ -13,6 +13,7 @@ class BillItem extends Model
         'name',
         'quantity',
         'unit_price',
+        'line_subtotal',
         'total_amount',
         'source',
         'sort_order',

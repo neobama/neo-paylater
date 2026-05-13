@@ -3,11 +3,10 @@
 namespace App\Filament\Resources\Bills\Pages;
 
 use App\Filament\Resources\Bills\BillResource;
-use App\Models\Bill;
 use App\Models\User;
 use App\Services\BillService;
-use App\Services\LedgerService;
 use App\Services\ReceiptParserService;
+use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\DatePicker;
@@ -58,49 +57,56 @@ class ManageBills extends ManageRecords
                         ->helperText('Foto dari HP otomatis diperkecil di perangkat sebelum upload, lalu disimpan di server (bukan cloud).')
                         ->required(),
                 ])
-                ->action(function (array $data, ReceiptParserService $receiptParserService, LedgerService $ledgerService): void {
+                ->action(function (array $data, ReceiptParserService $receiptParserService, BillService $billService) {
                     $parsed = $receiptParserService->parseFromStoredReceipt($data['receipt_image_path']);
 
-                    $bill = Bill::query()->create([
+                    $items = [];
+                    foreach ($parsed['items'] as $row) {
+                        $line = (int) $row['total_amount'];
+                        $items[] = [
+                            'name' => $row['name'],
+                            'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
+                            'unit_price' => max(0, (int) ($row['unit_price'] ?? 0)),
+                            'line_subtotal' => $line,
+                            'total_amount' => $line,
+                            'source' => 'ai',
+                            'raw_payload' => $row,
+                            'assigned_debtor_user_id' => $data['paid_by_user_id'],
+                            'splits' => [
+                                [
+                                    'debtor_user_id' => $data['paid_by_user_id'],
+                                    'amount' => $line,
+                                    'notes' => null,
+                                ],
+                            ],
+                        ];
+                    }
+
+                    $payload = [
                         'title' => $parsed['title'],
                         'merchant' => $parsed['merchant'],
                         'transaction_date' => $parsed['transaction_date'] ?: $data['fallback_transaction_date'],
                         'paid_by_user_id' => $data['paid_by_user_id'],
-                        'created_by_user_id' => Auth::id(),
-                        'total_amount' => 0,
-                        'receipt_parse_status' => 'parsed',
+                        'notes' => 'Draft hasil parsing Gemini. Atur assignment lalu simpan.',
                         'receipt_image_path' => $data['receipt_image_path'],
-                        'receipt_parsed_at' => now(),
+                        'receipt_parse_status' => 'parsed',
                         'receipt_raw_json' => $parsed['raw'],
-                        'notes' => 'Draft hasil parsing Gemini. Cek assignment sebelum dipakai.',
-                    ]);
+                        'tax_amount' => Money::normalize($parsed['tax_amount'] ?? 0),
+                        'service_charge_amount' => Money::normalize($parsed['service_charge_amount'] ?? 0),
+                        'split_per_item' => false,
+                        'items' => $items,
+                    ];
 
-                    foreach ($parsed['items'] as $index => $itemData) {
-                        $item = $bill->items()->create([
-                            'name' => $itemData['name'],
-                            'quantity' => $itemData['quantity'],
-                            'unit_price' => $itemData['unit_price'],
-                            'total_amount' => $itemData['total_amount'],
-                            'source' => 'ai',
-                            'sort_order' => $index,
-                            'raw_payload' => $itemData,
-                        ]);
-
-                        $item->splits()->create([
-                            'debtor_user_id' => $data['paid_by_user_id'],
-                            'amount' => $itemData['total_amount'],
-                            'sort_order' => 0,
-                            'notes' => 'Default ke payer dulu, edit assignment setelah parsing.',
-                        ]);
-                    }
-
-                    $ledgerService->syncBill($bill);
+                    $bill = $billService->createBill(BillResource::prepareBillData($payload), Auth::id());
+                    $bill->forceFill(['receipt_parsed_at' => now()])->save();
 
                     Notification::make()
                         ->success()
                         ->title('Receipt berhasil diparsing')
-                        ->body('Draft bill sudah dibuat. Edit bill untuk assign nominal ke teman-teman.')
+                        ->body('Lanjut atur assignment dan pajak/service di halaman berikut.')
                         ->send();
+
+                    $this->redirect(BillResource::getUrl('edit', ['record' => $bill]), navigate: true);
                 }),
         ];
     }

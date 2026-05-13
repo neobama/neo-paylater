@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Bills;
 
+use App\Filament\Resources\Bills\Pages\EditBill;
 use App\Filament\Resources\Bills\Pages\ManageBills;
 use App\Models\Bill;
 use App\Models\User;
-use App\Services\BillService;
 use App\Support\Money;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -19,6 +19,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -108,21 +109,35 @@ class BillResource extends Resource
                             ->helperText('Upload opsional. Foto dari HP otomatis diperkecil di perangkat sebelum upload. File disimpan lokal di folder receipt. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
-                    ->description('Untuk bill paket, cukup buat 1 item lalu bagi nominalnya ke beberapa orang.')
+                    ->description('Subtotal per baris belum termasuk pajak & service; bagian itu dibagi proporsional saat simpan. Matikan "split per item" bila tiap baris cukup satu orang.')
                     ->schema([
+                        Toggle::make('split_per_item')
+                            ->label('Split nominal per item (banyak orang per baris)')
+                            ->helperText('Matikan: pilih satu orang per item. Nyalakan: pecah nominal per baris ke beberapa orang.')
+                            ->default(false)
+                            ->live(),
                         Repeater::make('items')
                             ->label('Item')
                             ->cloneable()
                             ->collapsible()
                             ->default(fn (): array => [static::defaultItemState()])
-                            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
+                            ->itemLabel(function (array $state): ?string {
+                                $name = $state['name'] ?: 'Item';
+                                $qty = (int) ($state['quantity'] ?? 1);
+                                $line = $state['line_subtotal'] ?? $state['total_amount'] ?? 0;
+                                $lineInt = is_numeric($line) ? (int) $line : 0;
+                                $unit = $state['unit_price'] ?? null;
+                                $unitLabel = is_numeric($unit) ? Money::format((int) $unit) : '—';
+
+                                return "{$name} · qty {$qty} · @{$unitLabel} · subtotal ".Money::format($lineInt);
+                            })
                             ->schema([
                                 Grid::make(12)
                                     ->schema([
                                         TextInput::make('name')
                                             ->label('Nama item')
                                             ->required()
-                                            ->columnSpan(5),
+                                            ->columnSpan(4),
                                         TextInput::make('quantity')
                                             ->label('Qty')
                                             ->numeric()
@@ -131,39 +146,54 @@ class BillResource extends Resource
                                             ->required()
                                             ->live(onBlur: true)
                                             ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                                $set('total_amount', max(1, (int) $state) * Money::normalize($get('unit_price')));
+                                                $qty = max(1, (int) $state);
+                                                $unit = Money::normalize($get('unit_price'));
+                                                if ($unit > 0) {
+                                                    $set('line_subtotal', $qty * $unit);
+                                                }
                                             })
                                             ->columnSpan(2),
                                         TextInput::make('unit_price')
                                             ->label('Harga satuan')
                                             ->numeric()
                                             ->prefix('Rp')
-                                            ->helperText('Opsional kalau kamu langsung isi total item.')
                                             ->live(onBlur: true)
                                             ->afterStateUpdated(function (Get $get, Set $set, $state): void {
                                                 $unitPrice = Money::normalize($state);
-
+                                                $qty = max(1, (int) $get('quantity'));
                                                 if ($unitPrice > 0) {
-                                                    $set('total_amount', max(1, (int) $get('quantity')) * $unitPrice);
+                                                    $set('line_subtotal', $qty * $unitPrice);
                                                 }
                                             })
                                             ->columnSpan(2),
-                                        TextInput::make('total_amount')
-                                            ->label('Total item')
+                                        TextInput::make('line_subtotal')
+                                            ->label('Subtotal baris')
                                             ->numeric()
-                                            ->required()
                                             ->prefix('Rp')
-                                            ->columnSpan(3),
+                                            ->required()
+                                            ->helperText('Belum termasuk pajak & service di bawah.')
+                                            ->live(onBlur: true)
+                                            ->columnSpan(4),
                                     ]),
+                                Select::make('assigned_debtor_user_id')
+                                    ->label('Dibebankan ke (satu orang)')
+                                    ->options(fn (): array => static::getUserOptions(withAvatar: true))
+                                    ->searchable()
+                                    ->preload()
+                                    ->allowHtml()
+                                    ->default(fn (): ?int => Auth::id())
+                                    ->visible(fn (Get $get): bool => ! (bool) $get('../../split_per_item'))
+                                    ->required(fn (Get $get): bool => ! (bool) $get('../../split_per_item')),
                                 Repeater::make('splits')
-                                    ->label('Dibebankan ke')
+                                    ->label('Dibebankan ke (split per item)')
                                     ->cloneable()
                                     ->default(fn (Get $get): array => [[
                                         'debtor_user_id' => $get('../../paid_by_user_id') ?: Auth::id(),
-                                        'amount' => Money::normalize($get('../total_amount')),
+                                        'amount' => Money::normalize($get('../line_subtotal')),
                                         'notes' => null,
                                     ]])
                                     ->columns(12)
+                                    ->visible(fn (Get $get): bool => (bool) $get('../../split_per_item'))
                                     ->schema([
                                         Select::make('debtor_user_id')
                                             ->label('User')
@@ -171,20 +201,35 @@ class BillResource extends Resource
                                             ->searchable()
                                             ->preload()
                                             ->allowHtml()
-                                            ->default(fn (Get $get): mixed => $get('../../paid_by_user_id') ?: Auth::id())
+                                            ->default(fn (Get $get): mixed => $get('../../../../paid_by_user_id') ?: Auth::id())
                                             ->columnSpan(5),
                                         TextInput::make('amount')
                                             ->label('Nominal')
                                             ->numeric()
                                             ->prefix('Rp')
-                                            ->default(fn (Get $get): int => Money::normalize($get('../../total_amount')))
-                                            ->helperText('Kalau cuma satu assignment, nominal akan otomatis ikut total item.')
+                                            ->default(fn (Get $get): int => Money::normalize($get('../../line_subtotal')))
+                                            ->helperText('Total baris split + pajak/service dihitung saat simpan; proporsi di sini dipertahankan.')
                                             ->columnSpan(4),
                                         TextInput::make('notes')
                                             ->label('Catatan')
                                             ->maxLength(255)
                                             ->columnSpan(3),
                                     ]),
+                            ]),
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('tax_amount')
+                                    ->label('Pajak')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->default(0)
+                                    ->helperText('Dibagi ke tiap item proporsional terhadap subtotal baris, lalu masuk ke total yang dibebankan.'),
+                                TextInput::make('service_charge_amount')
+                                    ->label('Service charge')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->default(0)
+                                    ->helperText('Sama seperti pajak: proporsional per subtotal item.'),
                             ]),
                     ]),
             ]);
@@ -208,6 +253,12 @@ class BillResource extends Resource
                         TextEntry::make('total_amount')
                             ->label('Total')
                             ->formatStateUsing(fn ($state): string => Money::format($state)),
+                        TextEntry::make('tax_amount')
+                            ->label('Pajak')
+                            ->formatStateUsing(fn ($state): string => Money::format((int) ($state ?? 0))),
+                        TextEntry::make('service_charge_amount')
+                            ->label('Service')
+                            ->formatStateUsing(fn ($state): string => Money::format((int) ($state ?? 0))),
                         TextEntry::make('my_assigned_total')
                             ->label('Tagihan ke kamu')
                             ->state(fn (Bill $record): ?int => static::getAssignedAmountForUser($record, Auth::id()))
@@ -235,8 +286,17 @@ class BillResource extends Resource
                         TextEntry::make('name')
                             ->label('Item')
                             ->weight('bold'),
+                        TextEntry::make('quantity')
+                            ->label('Qty'),
+                        TextEntry::make('unit_price')
+                            ->label('Harga @')
+                            ->formatStateUsing(fn ($state): string => Money::format((int) $state)),
+                        TextEntry::make('line_subtotal')
+                            ->label('Subtotal')
+                            ->formatStateUsing(fn ($state): string => Money::format((int) ($state ?? 0)))
+                            ->placeholder('—'),
                         TextEntry::make('total_amount')
-                            ->label('Total item')
+                            ->label('Total dibebankan')
                             ->formatStateUsing(fn ($state): string => Money::format($state)),
                         RepeatableEntry::make('splits')
                             ->label('Assignment')
@@ -260,6 +320,9 @@ class BillResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->recordUrl(fn (Bill $record): ?string => static::canManage($record)
+                ? static::getUrl('edit', ['record' => $record])
+                : null)
             ->columns([
                 TextColumn::make('title')
                     ->label('Bill')
@@ -308,9 +371,8 @@ class BillResource extends Resource
                 ViewAction::make()
                     ->visible(fn (Bill $record): bool => static::canAccessRecord($record)),
                 EditAction::make()
-                    ->mutateRecordDataUsing(fn (Bill $record): array => static::formDataFromRecord($record))
-                    ->mutateDataUsing(fn (array $data): array => static::prepareBillData($data))
-                    ->using(fn (Bill $record, array $data, BillService $billService): Model => $billService->updateBill($record, $data))
+                    ->url(fn (Bill $record): string => static::getUrl('edit', ['record' => $record]))
+                    ->modal(false)
                     ->visible(fn (Bill $record): bool => static::canManage($record)),
                 DeleteAction::make()
                     ->visible(fn (Bill $record): bool => static::canManage($record)),
@@ -327,6 +389,7 @@ class BillResource extends Resource
     {
         return [
             'index' => ManageBills::route('/'),
+            'edit' => EditBill::route('/{record}/edit'),
         ];
     }
 
@@ -348,9 +411,45 @@ class BillResource extends Resource
         });
     }
 
+    /**
+     * @param  list<int>  $lineAmounts
+     * @return list<int>
+     */
+    public static function allocateProportionalFees(array $lineAmounts, int $feePool): array
+    {
+        $n = count($lineAmounts);
+        if ($feePool <= 0 || $n === 0) {
+            return array_fill(0, $n, 0);
+        }
+
+        $subtotal = (int) array_sum($lineAmounts);
+        if ($subtotal <= 0) {
+            $base = intdiv($feePool, $n);
+            $rem = $feePool % $n;
+            $out = [];
+            for ($i = 0; $i < $n; $i++) {
+                $out[] = $base + ($i < $rem ? 1 : 0);
+            }
+
+            return $out;
+        }
+
+        $extras = [];
+        foreach ($lineAmounts as $line) {
+            $extras[] = (int) round($feePool * $line / $subtotal);
+        }
+
+        $drift = $feePool - array_sum($extras);
+        if ($drift !== 0) {
+            $extras[$n - 1] += $drift;
+        }
+
+        return $extras;
+    }
+
     public static function prepareBillData(array $data): array
     {
-        $items = $data['items'] ?? [];
+        $items = array_values($data['items'] ?? []);
 
         if ($items === []) {
             throw ValidationException::withMessages([
@@ -358,83 +457,170 @@ class BillResource extends Resource
             ]);
         }
 
-        $totalAmount = 0;
+        $splitPerItem = (bool) ($data['split_per_item'] ?? false);
+        $tax = Money::normalize($data['tax_amount'] ?? 0);
+        $service = Money::normalize($data['service_charge_amount'] ?? 0);
+        $feePool = $tax + $service;
+
+        $lines = [];
 
         foreach ($items as $itemIndex => $item) {
             $quantity = max(1, (int) ($item['quantity'] ?? 1));
             $unitPrice = Money::normalize($item['unit_price'] ?? 0);
-            $total = Money::normalize($item['total_amount'] ?? ($quantity * $unitPrice));
+            $line = Money::normalize($item['line_subtotal'] ?? 0);
 
-            if ($total <= 0) {
+            if ($line <= 0) {
+                $line = Money::normalize($item['total_amount'] ?? 0);
+            }
+
+            if ($line <= 0 && $unitPrice > 0) {
+                $line = $quantity * $unitPrice;
+            }
+
+            if ($line <= 0) {
                 throw ValidationException::withMessages([
-                    "items.{$itemIndex}.total_amount" => 'Total item harus lebih dari nol.',
+                    "items.{$itemIndex}.line_subtotal" => 'Subtotal item harus lebih dari nol.',
                 ]);
             }
 
             if ($unitPrice <= 0) {
-                $unitPrice = (int) max(1, round($total / $quantity));
+                $unitPrice = (int) max(1, round($line / $quantity));
             }
 
-            $rawSplits = array_values($item['splits'] ?? []);
+            $lines[$itemIndex] = $line;
+            $items[$itemIndex]['quantity'] = $quantity;
+            $items[$itemIndex]['unit_price'] = $unitPrice;
+            $items[$itemIndex]['line_subtotal'] = $line;
+        }
 
-            if ($rawSplits === []) {
-                $rawSplits[] = [
-                    'debtor_user_id' => $data['paid_by_user_id'] ?? null,
-                    'amount' => $total,
-                    'notes' => null,
-                ];
-            }
+        $extras = static::allocateProportionalFees(array_values($lines), $feePool);
+        $orderedIndexes = array_keys($items);
 
-            $splitTotal = 0;
+        $totalAmount = 0;
 
-            foreach ($rawSplits as $splitIndex => $split) {
-                $debtorUserId = $split['debtor_user_id'] ?? null;
-                $amount = Money::normalize($split['amount'] ?? 0);
+        foreach ($orderedIndexes as $idx => $itemIndex) {
+            $line = $lines[$itemIndex];
+            $extra = $extras[$idx];
+            $itemTotal = $line + $extra;
 
-                if (! $debtorUserId && count($rawSplits) === 1) {
-                    $debtorUserId = $data['paid_by_user_id'] ?? null;
-                }
-
-                if ($amount <= 0 && count($rawSplits) === 1) {
-                    $amount = $total;
-                }
-
-                if (! $debtorUserId) {
-                    throw ValidationException::withMessages([
-                        "items.{$itemIndex}.splits.{$splitIndex}.debtor_user_id" => 'Pilih user untuk assignment item ini.',
-                    ]);
-                }
-
-                if ($amount <= 0) {
-                    throw ValidationException::withMessages([
-                        "items.{$itemIndex}.splits.{$splitIndex}.amount" => 'Nominal assignment harus lebih dari nol.',
-                    ]);
-                }
-
-                $items[$itemIndex]['splits'][$splitIndex]['debtor_user_id'] = $debtorUserId;
-                $items[$itemIndex]['splits'][$splitIndex]['amount'] = $amount;
-                $splitTotal += $amount;
-            }
-
-            if ($splitTotal !== $total) {
+            if ($itemTotal <= 0) {
                 throw ValidationException::withMessages([
-                    "items.{$itemIndex}.splits" => 'Total assignment harus sama dengan total item.',
+                    "items.{$itemIndex}.line_subtotal" => 'Total setelah pajak & service harus lebih dari nol.',
                 ]);
             }
 
-            $items[$itemIndex]['quantity'] = $quantity;
-            $items[$itemIndex]['unit_price'] = $unitPrice;
-            $items[$itemIndex]['total_amount'] = $total;
-            $items[$itemIndex]['source'] = $items[$itemIndex]['source'] ?? 'manual';
+            if (! $splitPerItem) {
+                $assignee = (int) ($items[$itemIndex]['assigned_debtor_user_id'] ?? 0);
+                if ($assignee <= 0) {
+                    $firstSplits = array_values($items[$itemIndex]['splits'] ?? []);
+                    if (count($firstSplits) === 1) {
+                        $assignee = (int) ($firstSplits[0]['debtor_user_id'] ?? 0);
+                    }
+                }
+                if ($assignee <= 0) {
+                    $assignee = (int) ($data['paid_by_user_id'] ?? 0);
+                }
 
-            $totalAmount += $total;
+                if ($assignee <= 0) {
+                    throw ValidationException::withMessages([
+                        "items.{$itemIndex}.assigned_debtor_user_id" => 'Pilih orang yang dibebankan untuk item ini.',
+                    ]);
+                }
+
+                $items[$itemIndex]['splits'] = [
+                    [
+                        'debtor_user_id' => $assignee,
+                        'amount' => $itemTotal,
+                        'notes' => null,
+                    ],
+                ];
+            } else {
+                $rawSplits = array_values($items[$itemIndex]['splits'] ?? []);
+
+                if ($rawSplits === []) {
+                    $rawSplits[] = [
+                        'debtor_user_id' => (int) ($data['paid_by_user_id'] ?? 0),
+                        'amount' => $line,
+                        'notes' => null,
+                    ];
+                }
+
+                $oldAmounts = [];
+                foreach ($rawSplits as $split) {
+                    $oldAmounts[] = Money::normalize($split['amount'] ?? 0);
+                }
+
+                $oldSum = (int) array_sum($oldAmounts);
+                if ($oldSum <= 0) {
+                    $debtor = (int) ($rawSplits[0]['debtor_user_id'] ?? $data['paid_by_user_id'] ?? 0);
+                    $rawSplits = [['debtor_user_id' => $debtor, 'amount' => $line, 'notes' => null]];
+                    $oldAmounts = [$line];
+                    $oldSum = $line;
+                }
+
+                $count = count($rawSplits);
+                $newSplits = [];
+                $running = 0;
+
+                foreach ($rawSplits as $splitIndex => $split) {
+                    $prevAmt = (int) ($oldAmounts[$splitIndex] ?? 0);
+                    $debtor = (int) ($split['debtor_user_id'] ?? $data['paid_by_user_id'] ?? 0);
+
+                    if ($splitIndex === $count - 1) {
+                        $amt = $itemTotal - $running;
+                    } else {
+                        $amt = $oldSum > 0
+                            ? (int) round($prevAmt * $itemTotal / $oldSum)
+                            : intdiv($itemTotal, $count);
+                        $running += $amt;
+                    }
+
+                    if ($debtor <= 0) {
+                        throw ValidationException::withMessages([
+                            "items.{$itemIndex}.splits.{$splitIndex}.debtor_user_id" => 'Pilih user untuk split ini.',
+                        ]);
+                    }
+
+                    if ($amt <= 0) {
+                        throw ValidationException::withMessages([
+                            "items.{$itemIndex}.splits.{$splitIndex}.amount" => 'Nominal split harus lebih dari nol.',
+                        ]);
+                    }
+
+                    $newSplits[] = [
+                        'debtor_user_id' => $debtor,
+                        'amount' => $amt,
+                        'notes' => $split['notes'] ?? null,
+                    ];
+                }
+
+                $splitSum = (int) array_sum(array_column($newSplits, 'amount'));
+                if ($splitSum !== $itemTotal) {
+                    $newSplits[$count - 1]['amount'] += $itemTotal - $splitSum;
+                }
+
+                $items[$itemIndex]['splits'] = $newSplits;
+            }
+
+            $items[$itemIndex]['total_amount'] = $itemTotal;
+            $items[$itemIndex]['source'] = $items[$itemIndex]['source'] ?? 'manual';
+            $totalAmount += $itemTotal;
         }
 
         $data['items'] = $items;
+        $data['split_per_item'] = $splitPerItem;
+        $data['tax_amount'] = $tax;
+        $data['service_charge_amount'] = $service;
         $data['total_amount'] = $totalAmount;
         $data['receipt_parse_status'] = filled($data['receipt_image_path'] ?? null)
             ? (($data['receipt_parse_status'] ?? null) ?: 'uploaded')
             : 'manual';
+
+        foreach ($items as $k => $item) {
+            unset($items[$k]['assigned_debtor_user_id']);
+        }
+
+        $data['items'] = $items;
 
         return $data;
     }
@@ -442,6 +628,16 @@ class BillResource extends Resource
     public static function formDataFromRecord(Bill $record): array
     {
         $record->loadMissing(['items.splits']);
+
+        $splitPerItem = $record->split_per_item;
+        if (! $splitPerItem) {
+            foreach ($record->items as $item) {
+                if ($item->splits->count() > 1) {
+                    $splitPerItem = true;
+                    break;
+                }
+            }
+        }
 
         return [
             'title' => $record->title,
@@ -451,6 +647,9 @@ class BillResource extends Resource
             'notes' => $record->notes,
             'receipt_image_path' => $record->receipt_image_path,
             'receipt_parse_status' => $record->receipt_parse_status,
+            'split_per_item' => $splitPerItem,
+            'tax_amount' => $record->tax_amount,
+            'service_charge_amount' => $record->service_charge_amount,
             'items' => $record->items
                 ->sortBy('sort_order')
                 ->values()
@@ -458,8 +657,12 @@ class BillResource extends Resource
                     'name' => $item->name,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
+                    'line_subtotal' => $item->line_subtotal ?? $item->total_amount,
                     'total_amount' => $item->total_amount,
                     'source' => $item->source,
+                    'assigned_debtor_user_id' => $item->splits->count() === 1
+                        ? $item->splits->first()->debtor_user_id
+                        : null,
                     'splits' => $item->splits
                         ->sortBy('sort_order')
                         ->values()
@@ -495,14 +698,21 @@ class BillResource extends Resource
             'name' => null,
             'quantity' => 1,
             'unit_price' => null,
+            'line_subtotal' => null,
             'total_amount' => null,
             'source' => 'manual',
+            'assigned_debtor_user_id' => Auth::id(),
             'splits' => [[
                 'debtor_user_id' => Auth::id(),
                 'amount' => null,
                 'notes' => null,
             ]],
         ];
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return $record instanceof Bill && static::canManage($record);
     }
 
     public static function canViewAny(): bool

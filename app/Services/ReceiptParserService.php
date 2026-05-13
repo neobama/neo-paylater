@@ -47,6 +47,8 @@ Return this exact shape:
   "title": "string",
   "merchant": "string|null",
   "transaction_date": "YYYY-MM-DD|null",
+  "tax_amount": 0,
+  "service_charge_amount": 0,
   "items": [
     {
       "name": "string",
@@ -59,6 +61,7 @@ Return this exact shape:
 
 Rules:
 - Use Indonesian rupiah integers without punctuation.
+- tax_amount and service_charge_amount are optional; use 0 if not on receipt.
 - If quantity is unclear, use 1.
 - If the merchant is unclear, use null.
 - If the date is unclear, use null.
@@ -95,6 +98,7 @@ PROMPT,
                 'total_amount' => max(0, (int) ($item['total_amount'] ?? 0)),
                 'source' => 'ai',
                 'sort_order' => $index,
+                'raw_payload' => $item,
             ])
             ->all();
 
@@ -102,6 +106,8 @@ PROMPT,
             'title' => $payload['title'] ?: 'Bill dari AI',
             'merchant' => $payload['merchant'] ?: null,
             'transaction_date' => $this->normalizeDate($payload['transaction_date'] ?? null),
+            'tax_amount' => max(0, (int) ($payload['tax_amount'] ?? 0)),
+            'service_charge_amount' => max(0, (int) ($payload['service_charge_amount'] ?? 0)),
             'items' => $items,
             'raw' => $payload,
         ];
