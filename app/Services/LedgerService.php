@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Filament\Resources\Settlements\SettlementResource;
 use App\Models\Bill;
 use App\Models\LedgerEntry;
 use App\Models\Settlement;
@@ -85,6 +86,96 @@ class LedgerService
             if ($entries !== []) {
                 LedgerEntry::query()->insert($entries);
             }
+        });
+    }
+
+    /**
+     * Catat pelunasan penuh untuk satu counterparty: counterparty (debtor) membayar
+     * {@see $creditor} sebesar sisa piutang bersih saat ini.
+     */
+    public function recordReceivablePaidInFull(User $creditor, int $debtorUserId, ?string $notes = null): Settlement
+    {
+        return DB::transaction(function () use ($creditor, $debtorUserId, $notes): Settlement {
+            $balanceRow = $this->getCounterpartyBalances($creditor)
+                ->first(fn (array $b): bool => (int) $b['counterparty']->id === $debtorUserId);
+
+            if (! $balanceRow || (int) $balanceRow['net_amount'] <= 0) {
+                throw ValidationException::withMessages([
+                    'counterparty' => 'Tidak ada piutang aktif untuk orang ini.',
+                ]);
+            }
+
+            $amount = (int) $balanceRow['net_amount'];
+
+            $validated = SettlementResource::prepareSettlementData([
+                'from_user_id' => $debtorUserId,
+                'to_user_id' => $creditor->id,
+                'amount' => $amount,
+            ]);
+
+            $settlement = Settlement::query()->create([
+                'from_user_id' => $validated['from_user_id'],
+                'to_user_id' => $validated['to_user_id'],
+                'created_by_user_id' => $creditor->id,
+                'amount' => $validated['amount'],
+                'paid_at' => now(),
+                'notes' => $notes,
+            ]);
+
+            $this->syncSettlement($settlement);
+
+            return $settlement;
+        });
+    }
+
+    /**
+     * Catat pelunasan sebagian: counterparty membayar kreditor sebesar {@see $amount}
+     * (tidak boleh melebihi sisa piutang bersih ke counterparty itu).
+     */
+    public function recordReceivablePartial(User $creditor, int $debtorUserId, int $amount, ?string $notes = null): Settlement
+    {
+        return DB::transaction(function () use ($creditor, $debtorUserId, $amount, $notes): Settlement {
+            $balanceRow = $this->getCounterpartyBalances($creditor)
+                ->first(fn (array $b): bool => (int) $b['counterparty']->id === $debtorUserId);
+
+            if (! $balanceRow || (int) $balanceRow['net_amount'] <= 0) {
+                throw ValidationException::withMessages([
+                    'counterparty' => 'Tidak ada piutang aktif untuk orang ini.',
+                ]);
+            }
+
+            $net = (int) $balanceRow['net_amount'];
+
+            if ($amount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Nominal harus lebih dari nol.',
+                ]);
+            }
+
+            if ($amount > $net) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Nominal melebihi sisa piutang untuk orang ini.',
+                ]);
+            }
+
+            $validated = SettlementResource::prepareSettlementData([
+                'from_user_id' => $debtorUserId,
+                'to_user_id' => $creditor->id,
+                'amount' => $amount,
+            ]);
+
+            $settlement = Settlement::query()->create([
+                'from_user_id' => $validated['from_user_id'],
+                'to_user_id' => $validated['to_user_id'],
+                'created_by_user_id' => $creditor->id,
+                'amount' => $validated['amount'],
+                'paid_at' => now(),
+                'notes' => $notes,
+            ]);
+
+            $this->syncSettlement($settlement);
+
+            return $settlement;
         });
     }
 
@@ -288,7 +379,7 @@ class LedgerService
 
                 return $balance['net_amount'] > 0;
             })
-            ->map(function (array $balance) use ($history, $direction): array {
+            ->map(function (array $balance) use ($history): array {
                 $counterpartyId = $balance['counterparty']->id;
                 $entries = $history
                     ->where('counterparty_id', $counterpartyId)

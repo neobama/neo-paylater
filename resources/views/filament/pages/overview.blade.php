@@ -1,5 +1,31 @@
 <x-filament-panels::page>
     <div class="space-y-6">
+        @if (filled($banner))
+            <div
+                role="status"
+                @class([
+                    'flex items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl sm:items-center sm:justify-between',
+                    'border-emerald-200/80 shadow-emerald-900/10' => $bannerVariant === 'success',
+                    'border-amber-200/80 shadow-amber-900/10' => $bannerVariant === 'warning',
+                    'border-rose-200/80 shadow-rose-900/10' => $bannerVariant === 'danger',
+                ])
+            >
+                <p class="min-w-0 flex-1 text-sm leading-snug text-slate-600 sm:text-[0.9375rem]">
+                    {{ $banner }}
+                </p>
+                <button
+                    type="button"
+                    wire:click="dismissBanner"
+                    class="shrink-0 rounded-full border border-slate-200/80 bg-slate-50 p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                    aria-label="Tutup pesan"
+                >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        @endif
+
         <section class="relative overflow-hidden rounded-[32px] border border-white/70 bg-gradient-to-br from-white via-rose-50/70 to-red-100/70 p-7 shadow-[0_30px_90px_-44px_rgba(15,23,42,0.25)]">
             <div class="absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(244,63,94,0.18),transparent_52%)] lg:block"></div>
 
@@ -116,12 +142,33 @@
                                     </div>
                                 </div>
 
-                                <a
-                                    href="{{ \App\Filament\Pages\History::getUrl(panel: 'admin') }}?counterparty={{ $group['counterparty']->id }}"
-                                    class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
-                                >
-                                    Lihat history lengkap
-                                </a>
+                                <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                                    @if ($widget['key'] === 'receivable')
+                                        <button
+                                            type="button"
+                                            wire:click="openFullSettleModal({{ $group['counterparty']->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="openFullSettleModal({{ $group['counterparty']->id }})"
+                                            class="inline-flex min-h-9 min-w-[5.5rem] items-center justify-center rounded-full !bg-emerald-600 px-4 py-2 text-sm font-semibold !text-white shadow-sm ring-1 ring-emerald-700/20 transition hover:!bg-emerald-700 disabled:opacity-60"
+                                        >
+                                            Lunasi
+                                        </button>
+                                        <button
+                                            type="button"
+                                            wire:click="openPartialReceivable({{ $group['counterparty']->id }})"
+                                            class="inline-flex min-h-9 items-center justify-center rounded-full !bg-amber-400 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm ring-1 ring-amber-500/30 transition hover:!bg-amber-500"
+                                        >
+                                            Lunasi sebagian
+                                        </button>
+                                    @endif
+
+                                    <a
+                                        href="{{ \App\Filament\Pages\History::getUrl(panel: 'admin') }}?counterparty={{ $group['counterparty']->id }}"
+                                        class="inline-flex items-center justify-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900"
+                                    >
+                                        Lihat history lengkap
+                                    </a>
+                                </div>
                             </div>
 
                             <div class="mt-4 space-y-3">
@@ -187,4 +234,119 @@
         @endforeach
         </div>
     </div>
+
+    @if ($fullSettleCounterpartyId)
+        <div
+            class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="full-settle-title"
+            wire:key="full-settle-modal"
+        >
+            <div
+                class="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"
+                wire:click="closeFullSettleModal"
+            ></div>
+
+            <div class="relative w-full max-w-md rounded-2xl border border-amber-200/80 bg-white p-6 shadow-2xl shadow-amber-900/10">
+                <h3 id="full-settle-title" class="text-lg font-semibold text-slate-900">
+                    Lunasi penuh
+                </h3>
+                <p class="mt-1 text-sm text-slate-600">
+                    Dari <span class="font-medium text-slate-900">{{ $fullSettleCounterpartyName }}</span>
+                    — total <span class="font-semibold text-amber-800">{{ \App\Support\Money::format($fullSettleAmount) }}</span>.
+                    Setelah dicatat, orang ini hilang dari daftar piutang di dashboard.
+                </p>
+
+                @if (filled($fullSettleError))
+                    <div class="mt-3 rounded-xl border border-rose-200/80 bg-rose-50/90 px-3 py-2.5">
+                        <p class="text-sm font-medium text-rose-900">{{ $fullSettleError }}</p>
+                    </div>
+                @endif
+
+                <div class="mt-6 flex flex-wrap items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        wire:click="closeFullSettleModal"
+                        class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="confirmFullSettle"
+                        wire:loading.attr="disabled"
+                        wire:target="confirmFullSettle"
+                        class="inline-flex min-w-[7rem] items-center justify-center rounded-full !bg-amber-500 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm transition hover:!bg-amber-600 disabled:opacity-60"
+                    >
+                        Catat lunas
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($partialCounterpartyId)
+        <div
+            class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            wire:key="partial-receivable-modal"
+        >
+            <div
+                class="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]"
+                wire:click="closePartialReceivable"
+            ></div>
+
+            <div class="relative w-full max-w-md rounded-2xl border border-amber-200/80 bg-white p-6 shadow-2xl shadow-amber-900/10">
+                <h3 class="text-lg font-semibold text-slate-900">
+                    Lunasi sebagian
+                </h3>
+                <p class="mt-1 text-sm text-slate-600">
+                    Dari <span class="font-medium text-slate-900">{{ $partialCounterpartyName }}</span>
+                    — sisa piutang maks. <span class="font-semibold text-amber-800">{{ \App\Support\Money::format($partialMaxAmount) }}</span>
+                </p>
+
+                <div class="mt-5">
+                    <label for="partial-amount-input" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Nominal (Rp)
+                    </label>
+                    <input
+                        id="partial-amount-input"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        wire:model="partialAmountInput"
+                        class="mt-1.5 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 shadow-inner outline-none ring-0 transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-200"
+                        placeholder="Contoh: 50000"
+                    />
+                </div>
+
+                @if (filled($partialError))
+                    <div class="mt-3 rounded-xl border border-rose-200/80 bg-rose-50/90 px-3 py-2.5">
+                        <p class="text-sm font-medium text-rose-900">{{ $partialError }}</p>
+                    </div>
+                @endif
+
+                <div class="mt-6 flex flex-wrap items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        wire:click="closePartialReceivable"
+                        class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                        Batal
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="submitPartialReceivable"
+                        wire:loading.attr="disabled"
+                        wire:target="submitPartialReceivable"
+                        class="inline-flex min-w-[7rem] items-center justify-center rounded-full !bg-amber-500 px-4 py-2 text-sm font-semibold !text-amber-950 shadow-sm transition hover:!bg-amber-600 disabled:opacity-60"
+                    >
+                        Simpan
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 </x-filament-panels::page>

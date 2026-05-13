@@ -169,7 +169,6 @@ body {
 
 .fi-simple-main input,
 .fi-simple-main input::placeholder,
-.fi-simple-main button,
 .fi-simple-main svg {
     color: #0f172a !important;
 }
@@ -257,4 +256,14 @@ body {
 
 .fi-main {
     --c-400: #fb7185;
+}
+
+/* Toast Filament: lebar tetap, tidak melebar ke seluruh layar */
+.fi-no.fi-align-center {
+    width: min(21rem, calc(100vw - 1.25rem));
+    margin-inline: auto;
+}
+
+.fi-no .fi-no-notification:not(.fi-inline) {
+    max-width: 100%;
 }
