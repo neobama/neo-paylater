@@ -22,7 +22,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (config('app.force_https', false)) {
+        // Livewire upload pakai signed URL; kalau halaman HTTPS tapi URL generate masih http, browser bisa blokir (mixed content).
+        if (config('app.force_https', false) || str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
     }

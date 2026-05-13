@@ -58,11 +58,11 @@ Ringkasnya:
 4. `php artisan storage:link`
 5. `npm ci && npm run build` (atau build di CI lalu upload folder `public/build`).
 6. Pastikan web server mengarah ke folder `public/` dan PHP punya izin tulis ke `storage/` dan `bootstrap/cache/`.
-7. **Upload receipt / AI**: Livewire menyimpan sementara di disk `public` (`storage/app/public/livewire-tmp`). Kalau upload gagal diam-diam atau lambat, cek:
-   - **Nginx** (atau NPM ke origin): `client_max_body_size 20m;` (default 1m sering memutus upload).
-   - **PHP**: `upload_max_filesize` dan `post_max_size` minimal **20M** (mis. di pool FPM), lalu reload **php-fpm**.
-   - **`php artisan storage:link`** dan izin tulis user **php-fpm** ke `storage/` dan `bootstrap/cache/`.
-   - **`APP_URL`** harus **https://** domain publik yang sama dengan yang dibuka browser (bantu cookie CSRF dan URL).
+7. **Upload receipt / AI**: Livewire menyimpan sementara di disk `public` (`storage/app/public/livewire-tmp`). Kalau di **lokal OK tapi production gagal** dengan pesan *failed to upload*, cek berurutan:
+   - **`APP_URL`** harus **`https://`** domain yang sama dengan address bar (bukan `http://`). Kalau salah, signed URL upload Livewire bisa `http://` dan browser memblokir (**mixed content**) walau halaman HTTPS.
+   - **Nginx** (atau NPM ke origin): `client_max_body_size 20m;` (default **1m** sering memutus body → file tidak sampai ke PHP).
+   - **PHP-FPM**: `upload_max_filesize` dan `post_max_size` minimal **25M** (sedikit di atas batas Livewire di `config/livewire.php`), lalu reload **php-fpm**. Cek cepat: `php -i | grep -E 'upload_max|post_max'`.
+   - **`php artisan storage:link`** dan izin tulis user **php-fpm** ke **`storage/`** (termasuk `storage/app/public/livewire-tmp`).
 
 Login pengguna: `/login`.
 
