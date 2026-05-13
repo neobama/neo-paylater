@@ -19,14 +19,17 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
-use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -43,6 +46,19 @@ class BillResource extends Resource
     protected static string|\UnitEnum|null $navigationGroup = 'Neo Paylater';
 
     protected static ?int $navigationSort = 20;
+
+    /**
+     * Kompres/resize gambar di browser (Filepond) sebelum request ke server,
+     * supaya foto kamera HP (sering 10–40MB) tidak mentok upload_max_filesize / Nginx.
+     */
+    public static function receiptPhotoFileUpload(FileUpload $component): FileUpload
+    {
+        return $component
+            ->automaticallyResizeImagesMode('contain')
+            ->automaticallyResizeImagesToWidth('2048')
+            ->automaticallyResizeImagesToHeight('2048')
+            ->automaticallyUpscaleImagesWhenResizing(false);
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -79,15 +95,17 @@ class BillResource extends Resource
                             ->label('Catatan')
                             ->rows(3)
                             ->placeholder('Contoh: patungan habis meeting kecil.'),
-                        FileUpload::make('receipt_image_path')
-                            ->label('Foto bill / struk')
-                            ->disk('public')
-                            ->directory('receipts')
-                            ->image()
+                        static::receiptPhotoFileUpload(
+                            FileUpload::make('receipt_image_path')
+                                ->label('Foto bill / struk')
+                                ->disk('public')
+                                ->directory('receipts')
+                                ->image()
+                        )
                             ->imageEditor()
                             ->openable()
                             ->downloadable()
-                            ->helperText('Upload opsional. File disimpan di storage lokal server pada folder receipt. Untuk AI mode, gunakan tombol "Import receipt AI" dari halaman Bills.'),
+                            ->helperText('Upload opsional. Foto dari HP otomatis diperkecil di perangkat sebelum upload. File disimpan lokal di folder receipt. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
                     ->description('Untuk bill paket, cukup buat 1 item lalu bagi nominalnya ke beberapa orang.')
@@ -178,19 +196,19 @@ class BillResource extends Resource
             ->components([
                 Section::make('Ringkasan bill')
                     ->schema([
-                        \Filament\Infolists\Components\TextEntry::make('title')
+                        TextEntry::make('title')
                             ->label('Nama bill'),
-                        \Filament\Infolists\Components\TextEntry::make('merchant')
+                        TextEntry::make('merchant')
                             ->label('Merchant'),
-                        \Filament\Infolists\Components\TextEntry::make('payer.name')
+                        TextEntry::make('payer.name')
                             ->label('Yang bayar'),
-                        \Filament\Infolists\Components\TextEntry::make('transaction_date')
+                        TextEntry::make('transaction_date')
                             ->label('Tanggal')
                             ->date('d M Y'),
-                        \Filament\Infolists\Components\TextEntry::make('total_amount')
+                        TextEntry::make('total_amount')
                             ->label('Total')
                             ->formatStateUsing(fn ($state): string => Money::format($state)),
-                        \Filament\Infolists\Components\TextEntry::make('my_assigned_total')
+                        TextEntry::make('my_assigned_total')
                             ->label('Tagihan ke kamu')
                             ->state(fn (Bill $record): ?int => static::getAssignedAmountForUser($record, Auth::id()))
                             ->formatStateUsing(fn ($state): string => Money::format($state))
@@ -198,7 +216,7 @@ class BillResource extends Resource
                     ])->columns(2),
                 Section::make('Foto receipt')
                     ->schema([
-                        \Filament\Infolists\Components\ImageEntry::make('receipt_image_path')
+                        ImageEntry::make('receipt_image_path')
                             ->label('Receipt')
                             ->disk('public')
                             ->visibility('public')
@@ -211,25 +229,25 @@ class BillResource extends Resource
                             ]),
                     ])
                     ->visible(fn (Bill $record): bool => filled($record->receipt_image_path)),
-                \Filament\Infolists\Components\RepeatableEntry::make('items')
+                RepeatableEntry::make('items')
                     ->label('Detail item')
                     ->schema([
-                        \Filament\Infolists\Components\TextEntry::make('name')
+                        TextEntry::make('name')
                             ->label('Item')
                             ->weight('bold'),
-                        \Filament\Infolists\Components\TextEntry::make('total_amount')
+                        TextEntry::make('total_amount')
                             ->label('Total item')
                             ->formatStateUsing(fn ($state): string => Money::format($state)),
-                        \Filament\Infolists\Components\RepeatableEntry::make('splits')
+                        RepeatableEntry::make('splits')
                             ->label('Assignment')
                             ->contained(false)
                             ->schema([
-                                \Filament\Infolists\Components\TextEntry::make('debtor.name')
+                                TextEntry::make('debtor.name')
                                     ->label('User'),
-                                \Filament\Infolists\Components\TextEntry::make('amount')
+                                TextEntry::make('amount')
                                     ->label('Nominal')
                                     ->formatStateUsing(fn ($state): string => Money::format($state)),
-                                \Filament\Infolists\Components\TextEntry::make('notes')
+                                TextEntry::make('notes')
                                     ->label('Catatan')
                                     ->placeholder('-'),
                             ])

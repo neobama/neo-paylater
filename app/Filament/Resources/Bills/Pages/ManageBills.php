@@ -48,12 +48,14 @@ class ManageBills extends ManageRecords
                         ->label('Fallback tanggal')
                         ->default(now())
                         ->helperText('Dipakai kalau tanggal di receipt tidak kebaca.'),
-                    FileUpload::make('receipt_image_path')
-                        ->label('Foto bill / struk')
-                        ->disk('public')
-                        ->directory('receipts')
-                        ->image()
-                        ->helperText('Foto disimpan di storage lokal server, tidak ke cloud.')
+                    BillResource::receiptPhotoFileUpload(
+                        FileUpload::make('receipt_image_path')
+                            ->label('Foto bill / struk')
+                            ->disk('public')
+                            ->directory('receipts')
+                            ->image()
+                    )
+                        ->helperText('Foto dari HP otomatis diperkecil di perangkat sebelum upload, lalu disimpan di server (bukan cloud).')
                         ->required(),
                 ])
                 ->action(function (array $data, ReceiptParserService $receiptParserService, LedgerService $ledgerService): void {
