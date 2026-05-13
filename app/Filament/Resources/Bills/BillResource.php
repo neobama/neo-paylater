@@ -113,7 +113,6 @@ class BillResource extends Resource
                             ->helperText('Upload opsional. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
-                    ->description('Tabel ringkas: satu orang = full baris; pilih lebih dari satu = total baris (termasuk bagian pajak/service) dibagi rata. Edit nama & nominal lewat ikon pensil.')
                     ->schema([
                         Repeater::make('items')
                             ->label('Item')
@@ -174,8 +173,7 @@ class BillResource extends Resource
                                     ->searchable()
                                     ->preload()
                                     ->allowHtml()
-                                    ->rules(['required', 'array', 'min:1'])
-                                    ->helperText('Satu orang: full subtotal. Lebih dari satu: dibagi rata (setelah pajak/service per baris).'),
+                                    ->rules(['required', 'array', 'min:1']),
                             ])
                             ->extraItemActions([
                                 Action::make('editLineItem')
