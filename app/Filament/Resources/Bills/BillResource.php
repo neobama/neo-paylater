@@ -109,12 +109,8 @@ class BillResource extends Resource
                             ->helperText('Upload opsional. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
-                    ->description('Subtotal per baris belum termasuk pajak & service; bagian itu dibagi proporsional saat simpan. Matikan "split per item" bila tiap baris cukup satu orang.')
+                    ->description('Subtotal per item belum termasuk pajak & service; bagian itu dibagi proporsional saat simpan. Split bisa diaktifkan per baris.')
                     ->schema([
-                        Toggle::make('split_per_item')
-                            ->label('Split nominal per item')
-                            ->default(false)
-                            ->live(),
                         Repeater::make('items')
                             ->label('Item')
                             ->cloneable()
@@ -127,10 +123,15 @@ class BillResource extends Resource
                                 $lineInt = is_numeric($line) ? (int) $line : 0;
                                 $unit = $state['unit_price'] ?? null;
                                 $unitLabel = is_numeric($unit) ? Money::format((int) $unit) : '—';
+                                $split = ! empty($state['split_per_item']);
 
-                                return "{$name} · qty {$qty} · @{$unitLabel} · subtotal ".Money::format($lineInt);
+                                return "{$name} · qty {$qty} · @{$unitLabel} · subtotal ".Money::format($lineInt).($split ? ' · split' : '');
                             })
                             ->schema([
+                                Toggle::make('split_per_item')
+                                    ->label('Split ke beberapa orang')
+                                    ->default(false)
+                                    ->live(),
                                 Grid::make(12)
                                     ->schema([
                                         TextInput::make('name')
@@ -181,10 +182,10 @@ class BillResource extends Resource
                                     ->preload()
                                     ->allowHtml()
                                     ->default(fn (): ?int => Auth::id())
-                                    ->visible(fn (Get $get): bool => ! (bool) $get('../../split_per_item'))
-                                    ->required(fn (Get $get): bool => ! (bool) $get('../../split_per_item')),
+                                    ->visible(fn (Get $get): bool => ! (bool) $get('../split_per_item'))
+                                    ->required(fn (Get $get): bool => ! (bool) $get('../split_per_item')),
                                 Repeater::make('splits')
-                                    ->label('Dibebankan ke (split per item)')
+                                    ->label('Dibebankan ke (split)')
                                     ->cloneable()
                                     ->default(fn (Get $get): array => [[
                                         'debtor_user_id' => $get('../../paid_by_user_id') ?: Auth::id(),
@@ -192,7 +193,7 @@ class BillResource extends Resource
                                         'notes' => null,
                                     ]])
                                     ->columns(12)
-                                    ->visible(fn (Get $get): bool => (bool) $get('../../split_per_item'))
+                                    ->visible(fn (Get $get): bool => (bool) $get('../split_per_item'))
                                     ->schema([
                                         Select::make('debtor_user_id')
                                             ->label('User')
@@ -453,7 +454,6 @@ class BillResource extends Resource
             ]);
         }
 
-        $splitPerItem = (bool) ($data['split_per_item'] ?? false);
         $tax = Money::normalize($data['tax_amount'] ?? 0);
         $service = Money::normalize($data['service_charge_amount'] ?? 0);
         $feePool = $tax + $service;
@@ -505,7 +505,9 @@ class BillResource extends Resource
                 ]);
             }
 
-            if (! $splitPerItem) {
+            $itemSplitPerItem = (bool) ($items[$itemIndex]['split_per_item'] ?? false);
+
+            if (! $itemSplitPerItem) {
                 $assignee = (int) ($items[$itemIndex]['assigned_debtor_user_id'] ?? 0);
                 if ($assignee <= 0) {
                     $firstSplits = array_values($items[$itemIndex]['splits'] ?? []);
@@ -598,13 +600,13 @@ class BillResource extends Resource
                 $items[$itemIndex]['splits'] = $newSplits;
             }
 
+            $items[$itemIndex]['split_per_item'] = $itemSplitPerItem;
             $items[$itemIndex]['total_amount'] = $itemTotal;
             $items[$itemIndex]['source'] = $items[$itemIndex]['source'] ?? 'manual';
             $totalAmount += $itemTotal;
         }
 
         $data['items'] = $items;
-        $data['split_per_item'] = $splitPerItem;
         $data['tax_amount'] = $tax;
         $data['service_charge_amount'] = $service;
         $data['total_amount'] = $totalAmount;
@@ -625,16 +627,6 @@ class BillResource extends Resource
     {
         $record->loadMissing(['items.splits']);
 
-        $splitPerItem = $record->split_per_item;
-        if (! $splitPerItem) {
-            foreach ($record->items as $item) {
-                if ($item->splits->count() > 1) {
-                    $splitPerItem = true;
-                    break;
-                }
-            }
-        }
-
         return [
             'title' => $record->title,
             'merchant' => $record->merchant,
@@ -643,7 +635,6 @@ class BillResource extends Resource
             'notes' => $record->notes,
             'receipt_image_path' => $record->receipt_image_path,
             'receipt_parse_status' => $record->receipt_parse_status,
-            'split_per_item' => $splitPerItem,
             'tax_amount' => $record->tax_amount,
             'service_charge_amount' => $record->service_charge_amount,
             'items' => $record->items
@@ -656,6 +647,8 @@ class BillResource extends Resource
                     'line_subtotal' => $item->line_subtotal ?? $item->total_amount,
                     'total_amount' => $item->total_amount,
                     'source' => $item->source,
+                    'split_per_item' => (bool) ($item->split_per_item ?? false)
+                        || $item->splits->count() > 1,
                     'assigned_debtor_user_id' => $item->splits->count() === 1
                         ? $item->splits->first()->debtor_user_id
                         : null,
@@ -697,6 +690,7 @@ class BillResource extends Resource
             'line_subtotal' => null,
             'total_amount' => null,
             'source' => 'manual',
+            'split_per_item' => false,
             'assigned_debtor_user_id' => Auth::id(),
             'splits' => [[
                 'debtor_user_id' => Auth::id(),

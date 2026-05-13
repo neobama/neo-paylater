@@ -17,7 +17,6 @@ class Bill extends Model
         'total_amount',
         'tax_amount',
         'service_charge_amount',
-        'split_per_item',
         'receipt_parse_status',
         'receipt_image_path',
         'receipt_parsed_at',
@@ -31,7 +30,6 @@ class Bill extends Model
             'transaction_date' => 'date',
             'receipt_parsed_at' => 'datetime',
             'receipt_raw_json' => 'array',
-            'split_per_item' => 'boolean',
         ];
     }
 

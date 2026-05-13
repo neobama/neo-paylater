@@ -49,7 +49,6 @@ class BillService
             'total_amount' => $data['total_amount'] ?? 0,
             'tax_amount' => $data['tax_amount'] ?? 0,
             'service_charge_amount' => $data['service_charge_amount'] ?? 0,
-            'split_per_item' => (bool) ($data['split_per_item'] ?? false),
             'receipt_parse_status' => $data['receipt_parse_status'] ?? 'manual',
             'receipt_image_path' => $data['receipt_image_path'] ?? null,
             'receipt_parsed_at' => $data['receipt_parsed_at'] ?? null,
@@ -68,6 +67,7 @@ class BillService
                 'line_subtotal' => $itemData['line_subtotal'] ?? $itemData['total_amount'],
                 'total_amount' => $itemData['total_amount'],
                 'source' => $itemData['source'] ?? 'manual',
+                'split_per_item' => (bool) ($itemData['split_per_item'] ?? false),
                 'sort_order' => $itemIndex,
                 'raw_payload' => $itemData['raw_payload'] ?? null,
             ]);

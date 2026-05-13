@@ -70,6 +70,7 @@ class ManageBills extends ManageRecords
                             'total_amount' => $line,
                             'source' => 'ai',
                             'raw_payload' => $row,
+                            'split_per_item' => false,
                             'assigned_debtor_user_id' => $data['paid_by_user_id'],
                             'splits' => [
                                 [
@@ -92,7 +93,6 @@ class ManageBills extends ManageRecords
                         'receipt_raw_json' => $parsed['raw'],
                         'tax_amount' => Money::normalize($parsed['tax_amount'] ?? 0),
                         'service_charge_amount' => Money::normalize($parsed['service_charge_amount'] ?? 0),
-                        'split_per_item' => false,
                         'items' => $items,
                     ];
 

@@ -16,6 +16,7 @@ class BillItem extends Model
         'line_subtotal',
         'total_amount',
         'source',
+        'split_per_item',
         'sort_order',
         'raw_payload',
     ];
@@ -24,6 +25,7 @@ class BillItem extends Model
     {
         return [
             'raw_payload' => 'array',
+            'split_per_item' => 'boolean',
         ];
     }
 
