@@ -62,6 +62,7 @@ class ManageBills extends ManageRecords
                     $items = [];
                     foreach ($parsed['items'] as $row) {
                         $line = (int) $row['total_amount'];
+                        $payerId = (int) $data['paid_by_user_id'];
                         $items[] = [
                             'name' => $row['name'],
                             'quantity' => max(1, (int) ($row['quantity'] ?? 1)),
@@ -70,11 +71,10 @@ class ManageBills extends ManageRecords
                             'total_amount' => $line,
                             'source' => 'ai',
                             'raw_payload' => $row,
-                            'split_per_item' => false,
-                            'assigned_debtor_user_id' => $data['paid_by_user_id'],
+                            'assignee_user_ids' => [$payerId],
                             'splits' => [
                                 [
-                                    'debtor_user_id' => $data['paid_by_user_id'],
+                                    'debtor_user_id' => $payerId,
                                     'amount' => $line,
                                     'notes' => null,
                                 ],

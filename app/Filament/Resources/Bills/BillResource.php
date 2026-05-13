@@ -8,6 +8,7 @@ use App\Models\Bill;
 use App\Models\User;
 use App\Support\Money;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -15,11 +16,13 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -27,12 +30,13 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
@@ -109,111 +113,126 @@ class BillResource extends Resource
                             ->helperText('Upload opsional. Untuk AI, gunakan "Import receipt AI" di halaman Bills.'),
                     ]),
                 Section::make('Item & assignment')
-                    ->description('Subtotal per item belum termasuk pajak & service; bagian itu dibagi proporsional saat simpan. Split bisa diaktifkan per baris.')
+                    ->description('Tabel ringkas: satu orang = full baris; pilih lebih dari satu = total baris (termasuk bagian pajak/service) dibagi rata. Edit nama & nominal lewat ikon pensil.')
                     ->schema([
                         Repeater::make('items')
                             ->label('Item')
                             ->cloneable()
-                            ->collapsible()
+                            ->compact()
+                            ->table([
+                                TableColumn::make('Item')->markAsRequired(),
+                                TableColumn::make('Qty × harga')->width('140px'),
+                                TableColumn::make('Subtotal')->width('120px')->markAsRequired(),
+                                TableColumn::make('Dibebankan ke')->markAsRequired(),
+                            ])
                             ->default(fn (): array => [static::defaultItemState()])
                             ->itemLabel(function (array $state): ?string {
                                 $name = $state['name'] ?: 'Item';
-                                $qty = (int) ($state['quantity'] ?? 1);
+                                $qty = (float) ($state['quantity'] ?? 1);
                                 $line = $state['line_subtotal'] ?? $state['total_amount'] ?? 0;
                                 $lineInt = is_numeric($line) ? (int) $line : 0;
-                                $unit = $state['unit_price'] ?? null;
-                                $unitLabel = is_numeric($unit) ? Money::format((int) $unit) : '—';
-                                $split = ! empty($state['split_per_item']);
+                                $n = count(array_unique(array_filter(Arr::wrap($state['assignee_user_ids'] ?? []))));
 
-                                return "{$name} · qty {$qty} · @{$unitLabel} · subtotal ".Money::format($lineInt).($split ? ' · split' : '');
+                                return "{$name} · ".Money::format($lineInt).($n > 1 ? " · {$n} orang" : '');
                             })
                             ->schema([
-                                Toggle::make('split_per_item')
-                                    ->label('Split ke beberapa orang')
-                                    ->default(false)
-                                    ->live(),
-                                Grid::make(12)
-                                    ->schema([
-                                        TextInput::make('name')
-                                            ->label('Nama item')
-                                            ->required()
-                                            ->columnSpan(4),
-                                        TextInput::make('quantity')
-                                            ->label('Qty')
-                                            ->numeric()
-                                            ->minValue(1)
-                                            ->default(1)
-                                            ->required()
-                                            ->live(onBlur: true)
-                                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                                $qty = max(1, (int) $state);
-                                                $unit = Money::normalize($get('unit_price'));
-                                                if ($unit > 0) {
-                                                    $set('line_subtotal', $qty * $unit);
-                                                }
-                                            })
-                                            ->columnSpan(2),
-                                        TextInput::make('unit_price')
-                                            ->label('Harga satuan')
-                                            ->numeric()
-                                            ->prefix('Rp')
-                                            ->live(onBlur: true)
-                                            ->afterStateUpdated(function (Get $get, Set $set, $state): void {
-                                                $unitPrice = Money::normalize($state);
-                                                $qty = max(1, (int) $get('quantity'));
-                                                if ($unitPrice > 0) {
-                                                    $set('line_subtotal', $qty * $unitPrice);
-                                                }
-                                            })
-                                            ->columnSpan(2),
-                                        TextInput::make('line_subtotal')
-                                            ->label('Subtotal item')
-                                            ->numeric()
-                                            ->prefix('Rp')
-                                            ->required()
-                                            ->helperText('Belum termasuk pajak & service di bawah.')
-                                            ->live(onBlur: true)
-                                            ->columnSpan(4),
-                                    ]),
-                                Select::make('assigned_debtor_user_id')
-                                    ->label('Dibebankan ke (satu orang)')
+                                Hidden::make('quantity')->default(1),
+                                Hidden::make('unit_price')->default(0),
+                                Hidden::make('source')->default('manual'),
+                                Hidden::make('raw_payload'),
+                                TextInput::make('name')
+                                    ->label('Item')
+                                    ->readOnly()
+                                    ->required(),
+                                Placeholder::make('qty_unit_preview')
+                                    ->label('Qty × harga')
+                                    ->content(function (Get $get): string {
+                                        $qty = (float) ($get('quantity') ?? 1);
+                                        $unit = Money::normalize($get('unit_price'));
+                                        if ($qty <= 0) {
+                                            $qty = 1;
+                                        }
+                                        if ($unit <= 0) {
+                                            return '—';
+                                        }
+                                        $qtyLabel = fmod($qty, 1.0) === 0.0
+                                            ? (string) (int) $qty
+                                            : rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
+
+                                        return "{$qtyLabel} × ".Money::format($unit);
+                                    }),
+                                TextInput::make('line_subtotal')
+                                    ->label('Subtotal')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->readOnly()
+                                    ->required(),
+                                Select::make('assignee_user_ids')
+                                    ->label('Orang')
+                                    ->multiple()
                                     ->options(fn (): array => static::getUserOptions(withAvatar: true))
                                     ->searchable()
                                     ->preload()
                                     ->allowHtml()
-                                    ->default(fn (): ?int => Auth::id())
-                                    ->visible(fn (Get $get): bool => ! (bool) $get('../split_per_item'))
-                                    ->required(fn (Get $get): bool => ! (bool) $get('../split_per_item')),
-                                Repeater::make('splits')
-                                    ->label('Dibebankan ke (split)')
-                                    ->cloneable()
-                                    ->default(fn (Get $get): array => [[
-                                        'debtor_user_id' => $get('../../paid_by_user_id') ?: Auth::id(),
-                                        'amount' => Money::normalize($get('../line_subtotal')),
-                                        'notes' => null,
-                                    ]])
-                                    ->columns(12)
-                                    ->visible(fn (Get $get): bool => (bool) $get('../split_per_item'))
+                                    ->rules(['required', 'array', 'min:1'])
+                                    ->helperText('Satu orang: full subtotal. Lebih dari satu: dibagi rata (setelah pajak/service per baris).'),
+                            ])
+                            ->extraItemActions([
+                                Action::make('editLineItem')
+                                    ->label('Edit item')
+                                    ->icon(Heroicon::PencilSquare)
+                                    ->modalHeading('Edit item')
                                     ->schema([
-                                        Select::make('debtor_user_id')
-                                            ->label('User')
-                                            ->options(fn (): array => static::getUserOptions(withAvatar: true))
-                                            ->searchable()
-                                            ->preload()
-                                            ->allowHtml()
-                                            ->default(fn (Get $get): mixed => $get('../../../../paid_by_user_id') ?: Auth::id())
-                                            ->columnSpan(5),
-                                        TextInput::make('amount')
-                                            ->label('Nominal')
+                                        TextInput::make('edit_name')
+                                            ->label('Nama item')
+                                            ->required()
+                                            ->maxLength(255),
+                                        TextInput::make('edit_quantity')
+                                            ->label('Qty')
+                                            ->numeric()
+                                            ->minValue(1)
+                                            ->integer()
+                                            ->required(),
+                                        TextInput::make('edit_unit_price')
+                                            ->label('Harga satuan')
                                             ->numeric()
                                             ->prefix('Rp')
-                                            ->default(fn (Get $get): int => Money::normalize($get('../../line_subtotal')))
-                                            ->columnSpan(4),
-                                        TextInput::make('notes')
-                                            ->label('Catatan')
-                                            ->maxLength(255)
-                                            ->columnSpan(3),
-                                    ]),
+                                            ->required(),
+                                    ])
+                                    ->fillForm(function (array $arguments, Repeater $component): array {
+                                        $item = $component->getRawItemState($arguments['item']);
+
+                                        return [
+                                            'edit_name' => (string) ($item['name'] ?? ''),
+                                            'edit_quantity' => (float) ($item['quantity'] ?? 1),
+                                            'edit_unit_price' => Money::normalize($item['unit_price'] ?? 0),
+                                        ];
+                                    })
+                                    ->action(function (array $arguments, Repeater $component, array $data): void {
+                                        $key = $arguments['item'];
+                                        $qty = max(1, (int) ($data['edit_quantity'] ?? 1));
+                                        $unit = Money::normalize($data['edit_unit_price'] ?? 0);
+                                        $name = trim((string) ($data['edit_name'] ?? ''));
+                                        if ($name === '' || $unit <= 0) {
+                                            return;
+                                        }
+                                        $line = $qty * $unit;
+                                        if ($line <= 0) {
+                                            return;
+                                        }
+                                        $state = $component->getState();
+                                        $state[$key] = array_merge(
+                                            $component->getRawItemState($key),
+                                            [
+                                                'name' => $name,
+                                                'quantity' => $qty,
+                                                'unit_price' => $unit,
+                                                'line_subtotal' => $line,
+                                                'total_amount' => $line,
+                                            ],
+                                        );
+                                        $component->state($state);
+                                    }),
                             ]),
                         Grid::make(2)
                             ->schema([
@@ -505,96 +524,96 @@ class BillResource extends Resource
                 ]);
             }
 
-            $itemSplitPerItem = (bool) ($items[$itemIndex]['split_per_item'] ?? false);
+            $ids = [];
+            foreach (Arr::wrap($items[$itemIndex]['assignee_user_ids'] ?? []) as $rid) {
+                $id = (int) $rid;
+                if ($id > 0 && ! in_array($id, $ids, true)) {
+                    $ids[] = $id;
+                }
+            }
 
-            if (! $itemSplitPerItem) {
-                $assignee = (int) ($items[$itemIndex]['assigned_debtor_user_id'] ?? 0);
-                if ($assignee <= 0) {
-                    $firstSplits = array_values($items[$itemIndex]['splits'] ?? []);
-                    if (count($firstSplits) === 1) {
-                        $assignee = (int) ($firstSplits[0]['debtor_user_id'] ?? 0);
+            if ($ids === []) {
+                $legacyAssign = (int) ($items[$itemIndex]['assigned_debtor_user_id'] ?? 0);
+                if ($legacyAssign > 0) {
+                    $ids = [$legacyAssign];
+                }
+            }
+
+            if ($ids === []) {
+                $legacyMulti = array_values(array_unique(array_filter(array_map(
+                    static fn ($id): int => (int) $id,
+                    Arr::wrap($items[$itemIndex]['split_debtor_ids'] ?? [])
+                ))));
+                if ($legacyMulti !== []) {
+                    $ids = $legacyMulti;
+                }
+            }
+
+            if ($ids === []) {
+                foreach (array_values($items[$itemIndex]['splits'] ?? []) as $split) {
+                    $d = (int) ($split['debtor_user_id'] ?? 0);
+                    if ($d > 0 && ! in_array($d, $ids, true)) {
+                        $ids[] = $d;
                     }
                 }
-                if ($assignee <= 0) {
-                    $assignee = (int) ($data['paid_by_user_id'] ?? 0);
-                }
+            }
 
-                if ($assignee <= 0) {
+            if ($ids === []) {
+                $payer = (int) ($data['paid_by_user_id'] ?? 0);
+                if ($payer > 0) {
+                    $ids = [$payer];
+                }
+            }
+
+            if ($ids === [] || $ids[0] <= 0) {
+                throw ValidationException::withMessages([
+                    "items.{$itemIndex}.assignee_user_ids" => 'Pilih minimal satu orang untuk tiap item.',
+                ]);
+            }
+
+            $n = count($ids);
+            $itemSplitPerItem = $n > 1;
+
+            if ($n === 1) {
+                $debtorId = $ids[0];
+                if ($debtorId <= 0) {
                     throw ValidationException::withMessages([
-                        "items.{$itemIndex}.assigned_debtor_user_id" => 'Pilih orang yang dibebankan untuk item ini.',
+                        "items.{$itemIndex}.assignee_user_ids" => 'User tidak valid.',
                     ]);
                 }
 
                 $items[$itemIndex]['splits'] = [
                     [
-                        'debtor_user_id' => $assignee,
+                        'debtor_user_id' => $debtorId,
                         'amount' => $itemTotal,
                         'notes' => null,
                     ],
                 ];
             } else {
-                $rawSplits = array_values($items[$itemIndex]['splits'] ?? []);
-
-                if ($rawSplits === []) {
-                    $rawSplits[] = [
-                        'debtor_user_id' => (int) ($data['paid_by_user_id'] ?? 0),
-                        'amount' => $line,
-                        'notes' => null,
-                    ];
-                }
-
-                $oldAmounts = [];
-                foreach ($rawSplits as $split) {
-                    $oldAmounts[] = Money::normalize($split['amount'] ?? 0);
-                }
-
-                $oldSum = (int) array_sum($oldAmounts);
-                if ($oldSum <= 0) {
-                    $debtor = (int) ($rawSplits[0]['debtor_user_id'] ?? $data['paid_by_user_id'] ?? 0);
-                    $rawSplits = [['debtor_user_id' => $debtor, 'amount' => $line, 'notes' => null]];
-                    $oldAmounts = [$line];
-                    $oldSum = $line;
-                }
-
-                $count = count($rawSplits);
+                $base = intdiv($itemTotal, $n);
+                $rem = $itemTotal % $n;
                 $newSplits = [];
-                $running = 0;
 
-                foreach ($rawSplits as $splitIndex => $split) {
-                    $prevAmt = (int) ($oldAmounts[$splitIndex] ?? 0);
-                    $debtor = (int) ($split['debtor_user_id'] ?? $data['paid_by_user_id'] ?? 0);
-
-                    if ($splitIndex === $count - 1) {
-                        $amt = $itemTotal - $running;
-                    } else {
-                        $amt = $oldSum > 0
-                            ? (int) round($prevAmt * $itemTotal / $oldSum)
-                            : intdiv($itemTotal, $count);
-                        $running += $amt;
-                    }
-
-                    if ($debtor <= 0) {
+                foreach ($ids as $i => $debtorId) {
+                    if ($debtorId <= 0) {
                         throw ValidationException::withMessages([
-                            "items.{$itemIndex}.splits.{$splitIndex}.debtor_user_id" => 'Pilih user untuk split ini.',
+                            "items.{$itemIndex}.assignee_user_ids" => 'User tidak valid.',
                         ]);
                     }
 
+                    $amt = $base + ($i < $rem ? 1 : 0);
+
                     if ($amt <= 0) {
                         throw ValidationException::withMessages([
-                            "items.{$itemIndex}.splits.{$splitIndex}.amount" => 'Nominal split harus lebih dari nol.',
+                            "items.{$itemIndex}.assignee_user_ids" => 'Nominal per orang harus lebih dari nol.',
                         ]);
                     }
 
                     $newSplits[] = [
-                        'debtor_user_id' => $debtor,
+                        'debtor_user_id' => $debtorId,
                         'amount' => $amt,
-                        'notes' => $split['notes'] ?? null,
+                        'notes' => null,
                     ];
-                }
-
-                $splitSum = (int) array_sum(array_column($newSplits, 'amount'));
-                if ($splitSum !== $itemTotal) {
-                    $newSplits[$count - 1]['amount'] += $itemTotal - $splitSum;
                 }
 
                 $items[$itemIndex]['splits'] = $newSplits;
@@ -615,7 +634,11 @@ class BillResource extends Resource
             : 'manual';
 
         foreach ($items as $k => $item) {
-            unset($items[$k]['assigned_debtor_user_id']);
+            unset(
+                $items[$k]['assignee_user_ids'],
+                $items[$k]['assigned_debtor_user_id'],
+                $items[$k]['split_debtor_ids'],
+            );
         }
 
         $data['items'] = $items;
@@ -647,11 +670,14 @@ class BillResource extends Resource
                     'line_subtotal' => $item->line_subtotal ?? $item->total_amount,
                     'total_amount' => $item->total_amount,
                     'source' => $item->source,
-                    'split_per_item' => (bool) ($item->split_per_item ?? false)
-                        || $item->splits->count() > 1,
-                    'assigned_debtor_user_id' => $item->splits->count() === 1
-                        ? $item->splits->first()->debtor_user_id
-                        : null,
+                    'raw_payload' => $item->raw_payload,
+                    'assignee_user_ids' => $item->splits
+                        ->sortBy('sort_order')
+                        ->pluck('debtor_user_id')
+                        ->map(fn ($id): int => (int) $id)
+                        ->unique()
+                        ->values()
+                        ->all(),
                     'splits' => $item->splits
                         ->sortBy('sort_order')
                         ->values()
@@ -690,13 +716,9 @@ class BillResource extends Resource
             'line_subtotal' => null,
             'total_amount' => null,
             'source' => 'manual',
-            'split_per_item' => false,
-            'assigned_debtor_user_id' => Auth::id(),
-            'splits' => [[
-                'debtor_user_id' => Auth::id(),
-                'amount' => null,
-                'notes' => null,
-            ]],
+            'raw_payload' => null,
+            'assignee_user_ids' => array_values(array_filter([(int) Auth::id()])),
+            'splits' => [],
         ];
     }
 
