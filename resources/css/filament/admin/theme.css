@@ -1,0 +1,260 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+@theme {
+    --color-primary-50: #fff1f2;
+    --color-primary-100: #ffe4e6;
+    --color-primary-200: #fecdd3;
+    --color-primary-300: #fda4af;
+    --color-primary-400: #fb7185;
+    --color-primary-500: #f43f5e;
+    --color-primary-600: #e11d48;
+    --color-primary-700: #be123c;
+    --color-primary-800: #9f1239;
+    --color-primary-900: #881337;
+}
+
+:root {
+    --neo-surface: color-mix(in oklab, white 88%, var(--color-primary-100));
+}
+
+body {
+    color: #0f172a;
+    background:
+        radial-gradient(circle at top, color-mix(in oklab, var(--color-primary-200) 36%, white) 0%, transparent 34%),
+        linear-gradient(180deg, #fff8f8 0%, #fff 36%, #fff7f7 100%);
+}
+
+.fi-sidebar {
+    backdrop-filter: blur(18px);
+    background: color-mix(in oklab, white 88%, var(--color-primary-100));
+    border-right: 1px solid color-mix(in oklab, var(--color-primary-200) 52%, white);
+}
+
+.fi-topbar {
+    backdrop-filter: blur(16px);
+    background: color-mix(in oklab, white 90%, var(--color-primary-100));
+}
+
+.fi-section,
+.fi-ta-table,
+.fi-modal-window,
+.fi-simple-main {
+    box-shadow: 0 24px 80px -36px rgb(15 23 42 / 0.12);
+}
+
+.fi-btn-color-danger,
+.fi-btn-color-primary {
+    box-shadow: 0 18px 35px -20px rgb(225 29 72 / 0.75);
+}
+
+.fi-sidebar-item-label,
+.fi-topbar-item-label,
+.fi-breadcrumbs-item-label,
+.fi-ta-text-item-label,
+.fi-in-text-item-label,
+.fi-section-header-heading,
+.fi-modal-heading,
+.fi-logo,
+.fi-header-heading,
+.fi-simple-header-heading {
+    color: #0f172a;
+}
+
+.fi-sidebar-item-description,
+.fi-ta-text-item-description,
+.fi-in-text-item-description,
+.fi-section-header-description,
+.fi-header-subheading,
+.fi-simple-header-subheading {
+    color: #475569;
+}
+
+.fi-logo,
+.fi-header-heading,
+.fi-simple-header-heading {
+    text-shadow: none;
+}
+
+.fi-logo {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.neo-brand-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    width: auto;
+}
+
+.neo-brand-logo__horizontal,
+.neo-brand-logo__square {
+    display: block;
+    height: 100%;
+    width: auto;
+    object-fit: contain;
+}
+
+.neo-brand-logo__square {
+    display: none;
+}
+
+.fi-simple-layout {
+    background:
+        radial-gradient(circle at top, color-mix(in oklab, var(--color-primary-200) 38%, white) 0%, transparent 36%),
+        radial-gradient(circle at bottom left, color-mix(in oklab, var(--color-primary-100) 48%, white) 0%, transparent 34%),
+        linear-gradient(180deg, #fff7f8 0%, #fff 42%, #fff6f7 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.fi-simple-main {
+    border: 1px solid color-mix(in oklab, var(--color-primary-200) 52%, white);
+    background: color-mix(in oklab, white 94%, var(--color-primary-50));
+    backdrop-filter: blur(18px);
+    position: relative;
+    z-index: 1;
+}
+
+.fi-simple-header {
+    align-items: center;
+    text-align: center;
+}
+
+.fi-simple-header .fi-logo {
+    height: 8rem !important;
+    margin-inline: auto;
+}
+
+.fi-simple-header .neo-brand-logo {
+    justify-content: center;
+}
+
+.fi-simple-header .neo-brand-logo__horizontal {
+    display: none;
+}
+
+.fi-simple-header .neo-brand-logo__square {
+    display: block;
+}
+
+.fi-simple-main .fi-fo-field-wrp-label,
+.fi-simple-main .fi-fo-field-wrp-label span,
+.fi-simple-main .fi-fo-field-label-required-mark,
+.fi-simple-main label {
+    color: #0f172a !important;
+}
+
+.fi-simple-main .fi-input-wrp {
+    border-color: color-mix(in oklab, var(--color-primary-200) 56%, white);
+    background: rgb(255 255 255 / 0.96);
+    color: #0f172a !important;
+}
+
+.fi-simple-main .fi-input,
+.fi-simple-main .fi-input::placeholder,
+.fi-simple-main .fi-input-wrp-suffix,
+.fi-simple-main .fi-input-wrp-actions,
+.fi-simple-main .fi-ac-icon-btn-action {
+    color: #0f172a !important;
+}
+
+.fi-simple-main .fi-input:focus {
+    color: #0f172a !important;
+}
+
+.fi-simple-main input,
+.fi-simple-main input::placeholder,
+.fi-simple-main button,
+.fi-simple-main svg {
+    color: #0f172a !important;
+}
+
+.fi-simple-main input {
+    -webkit-text-fill-color: #0f172a !important;
+    caret-color: #0f172a;
+}
+
+.neo-login-crabs {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    height: 7rem;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.neo-login-crab {
+    position: absolute;
+    left: var(--crab-left);
+    bottom: var(--crab-bottom);
+    font-size: var(--crab-size);
+    line-height: 1;
+    opacity: var(--crab-opacity);
+    filter: drop-shadow(0 8px 16px rgb(225 29 72 / 0.18));
+    animation: neo-login-crab-walk var(--crab-duration) ease-in-out infinite;
+    animation-delay: var(--crab-delay);
+    transform: translateX(-10vw);
+    user-select: none;
+}
+
+.neo-login-crab--reverse {
+    animation-name: neo-login-crab-walk-reverse;
+    transform: translateX(10vw) scaleX(-1);
+}
+
+@keyframes neo-login-crab-walk {
+    0% {
+        transform: translateX(-10vw) translateY(0) rotate(-2deg);
+    }
+
+    25% {
+        transform: translateX(calc(var(--crab-travel) * 0.35)) translateY(-0.2rem) rotate(2deg);
+    }
+
+    50% {
+        transform: translateX(calc(var(--crab-travel) * 0.65)) translateY(0.15rem) rotate(-1deg);
+    }
+
+    100% {
+        transform: translateX(var(--crab-travel)) translateY(0) rotate(2deg);
+    }
+}
+
+@keyframes neo-login-crab-walk-reverse {
+    0% {
+        transform: translateX(10vw) scaleX(-1) translateY(0) rotate(-2deg);
+    }
+
+    25% {
+        transform: translateX(calc(var(--crab-travel) * -0.35)) scaleX(-1) translateY(-0.2rem) rotate(2deg);
+    }
+
+    50% {
+        transform: translateX(calc(var(--crab-travel) * -0.65)) scaleX(-1) translateY(0.15rem) rotate(-1deg);
+    }
+
+    100% {
+        transform: translateX(calc(var(--crab-travel) * -1)) scaleX(-1) translateY(0) rotate(2deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .neo-login-crab,
+    .neo-login-crab--reverse {
+        animation: none;
+    }
+}
+
+.fi-page {
+    color: #0f172a;
+}
+
+.fi-main {
+    --c-400: #fb7185;
+}
