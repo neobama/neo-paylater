@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Filament\Auth\Responses\LogoutResponse;
 use Filament\Auth\Http\Responses\Contracts\LogoutResponse as LogoutResponseContract;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -12,7 +14,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(LogoutResponseContract::class, \App\Filament\Auth\Responses\LogoutResponse::class);
+        $this->app->bind(LogoutResponseContract::class, LogoutResponse::class);
     }
 
     /**
@@ -20,6 +22,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if (config('app.force_https', false)) {
+            URL::forceScheme('https');
+        }
     }
 }

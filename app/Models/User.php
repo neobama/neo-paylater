@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 #[Fillable(['name', 'username', 'email', 'password', 'is_admin', 'phone', 'avatar_path', 'notes'])]
@@ -89,7 +88,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar, HasName
             return null;
         }
 
-        return Storage::disk('public')->url($this->avatar_path);
+        return '/storage/'.ltrim(str_replace('\\', '/', $this->avatar_path), '/');
     }
 
     public function getInitials(): string

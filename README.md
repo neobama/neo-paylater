@@ -58,6 +58,11 @@ Ringkasnya:
 4. `php artisan storage:link`
 5. `npm ci && npm run build` (atau build di CI lalu upload folder `public/build`).
 6. Pastikan web server mengarah ke folder `public/` dan PHP punya izin tulis ke `storage/` dan `bootstrap/cache/`.
+7. **Upload receipt / AI**: Livewire menyimpan sementara di disk `public` (`storage/app/public/livewire-tmp`). Kalau upload gagal diam-diam atau lambat, cek:
+   - **Nginx** (atau NPM ke origin): `client_max_body_size 20m;` (default 1m sering memutus upload).
+   - **PHP**: `upload_max_filesize` dan `post_max_size` minimal **20M** (mis. di pool FPM), lalu reload **php-fpm**.
+   - **`php artisan storage:link`** dan izin tulis user **php-fpm** ke `storage/` dan `bootstrap/cache/`.
+   - **`APP_URL`** harus **https://** domain publik yang sama dengan yang dibuka browser (bantu cookie CSRF dan URL).
 
 Login pengguna: `/login`.
 

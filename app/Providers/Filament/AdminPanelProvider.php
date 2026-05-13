@@ -3,9 +3,8 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Auth\Login;
-use App\Http\Middleware\RedirectToLogin;
 use App\Filament\Pages\Overview;
-use Filament\Http\Middleware\Authenticate;
+use App\Http\Middleware\RedirectToLogin;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -33,17 +32,17 @@ class AdminPanelProvider extends PanelProvider
             ->darkMode(false)
             ->login(Login::class)
             ->brandName('Neo Paylater')
-            ->favicon(asset('favicon.ico'))
+            ->favicon('/favicon.ico')
             ->brandLogo(fn (): HtmlString => new HtmlString(
-                '<span class="neo-brand-logo">' .
-                '<img class="neo-brand-logo__horizontal" src="' . asset('branding/neopaylater.png') . '" alt="Neo Paylater" />' .
-                '<img class="neo-brand-logo__square" src="' . asset('branding/neopaylatersquare.png') . '" alt="Neo Paylater" />' .
+                '<span class="neo-brand-logo">'.
+                '<img class="neo-brand-logo__horizontal" src="/branding/neopaylater.png" alt="Neo Paylater" />'.
+                '<img class="neo-brand-logo__square" src="/branding/neopaylater.png" alt="Neo Paylater" />'.
                 '</span>'
             ))
             ->darkModeBrandLogo(fn (): HtmlString => new HtmlString(
-                '<span class="neo-brand-logo">' .
-                '<img class="neo-brand-logo__horizontal" src="' . asset('branding/neopaylater.png') . '" alt="Neo Paylater" />' .
-                '<img class="neo-brand-logo__square" src="' . asset('branding/neopaylatersquare.png') . '" alt="Neo Paylater" />' .
+                '<span class="neo-brand-logo">'.
+                '<img class="neo-brand-logo__horizontal" src="/branding/neopaylater.png" alt="Neo Paylater" />'.
+                '<img class="neo-brand-logo__square" src="/branding/neopaylater.png" alt="Neo Paylater" />'.
                 '</span>'
             ))
             ->brandLogoHeight('4rem')
@@ -94,6 +93,6 @@ class AdminPanelProvider extends PanelProvider
             );
         }
 
-        return new HtmlString('<div class="neo-login-crabs" aria-hidden="true">' . $crabs . '</div>');
+        return new HtmlString('<div class="neo-login-crabs" aria-hidden="true">'.$crabs.'</div>');
     }
 }

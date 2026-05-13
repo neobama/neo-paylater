@@ -41,7 +41,9 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // URL relatif menghindari mixed content bila APP_URL masih http sementara situs di HTTPS.
+            // Override penuh: set FILESYSTEM_PUBLIC_URL=https://domain/storage
+            'url' => env('FILESYSTEM_PUBLIC_URL', '/storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
